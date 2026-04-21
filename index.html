@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>CloudVote Pro</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:'Poppins',sans-serif;}
+
+body{
+  height:100vh;
+  background: linear-gradient(-45deg,#667eea,#764ba2,#6dd5ed,#2193b0);
+  background-size:400% 400%;
+  animation:bg 10s ease infinite;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+}
+
+@keyframes bg{
+  0%{background-position:0% 50%;}
+  50%{background-position:100% 50%;}
+  100%{background-position:0% 50%;}
+}
+
+.dashboard{
+  width:420px;
+  padding:30px;
+  border-radius:20px;
+  background:rgba(255,255,255,0.15);
+  backdrop-filter:blur(15px);
+  color:white;
+  text-align:center;
+}
+
+h1{margin-bottom:20px;}
+
+input{
+  width:100%;
+  padding:12px;
+  border:none;
+  border-radius:10px;
+  margin-bottom:15px;
+}
+
+button{
+  width:100%;
+  padding:12px;
+  margin:6px 0;
+  border:none;
+  border-radius:10px;
+  cursor:pointer;
+}
+
+.primary{background:#00c6ff;color:black;}
+.back{background:#ccc;color:black;}
+
+.voteA{background:#ff4b2b;color:white;}
+.voteB{background:#0072ff;color:white;}
+.voteC{background:#ffd200;color:black;}
+
+.hidden{display:none;}
+
+/* WINNER BOX */
+.winner-box{
+  margin-top:20px;
+  padding:15px;
+  border-radius:15px;
+  background: linear-gradient(135deg,#00c6ff,#0072ff);
+  color:white;
+  text-align:center;
+  box-shadow:0 0 20px rgba(0,0,0,0.3);
+}
+
+.winner-box h3{
+  font-size:20px;
+  font-weight:bold;
+}
+</style>
+</head>
+
+<body>
+
+<div class="dashboard">
+
+<h1>CloudVote</h1>
+
+<!-- STEP 1 -->
+<div id="step1">
+<input type="tel" id="mobile" placeholder="Enter 10-digit Mobile"
+oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,10)">
+<button class="primary" onclick="goToName()">Next</button>
+</div>
+
+<!-- STEP 2 -->
+<div id="step2" class="hidden">
+<input type="text" id="name" placeholder="Enter Name">
+<button class="primary" onclick="goToVote()">Next</button>
+<button class="back" onclick="showStep(1)">← Back</button>
+</div>
+
+<!-- STEP 3 -->
+<div id="step3" class="hidden">
+<h2>Vote</h2>
+<button class="voteA" onclick="vote('A')">Candidate A</button>
+<button class="voteB" onclick="vote('B')">Candidate B</button>
+<button class="voteC" onclick="vote('C')">Candidate C</button>
+<button class="back" onclick="showStep(2)">← Back</button>
+</div>
+
+<!-- STEP 4 -->
+<div id="step4" class="hidden">
+<h2>Results</h2>
+
+<p>A: <span id="aVotes">0</span></p>
+<p>B: <span id="bVotes">0</span></p>
+<p>C: <span id="cVotes">0</span></p>
+
+<canvas id="chart"></canvas>
+
+<!-- WINNER CARD -->
+<div class="winner-box">
+  <h3 id="winnerText">🏆 Calculating winner...</h3>
+</div>
+
+<button class="back" onclick="location.reload()">New Vote</button>
+</div>
+
+</div>
+
+<script>
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "cloudvote-system.firebaseapp.com",
+  databaseURL: "https://cloudvote-system-default-rtdb.firebaseio.com/",
+  projectId: "cloudvote-system",
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+let mobile="", chart;
+
+// STEP CONTROL
+function showStep(step){
+  ["step1","step2","step3","step4"].forEach(s=>{
+    document.getElementById(s).classList.add("hidden");
+  });
+  document.getElementById("step"+step).classList.remove("hidden");
+}
+
+// STEP 1
+function goToName(){
+  mobile=document.getElementById("mobile").value;
+  if(!/^[0-9]{10}$/.test(mobile)){
+    alert("Enter valid 10-digit number");
+    return;
+  }
+  showStep(2);
+}
+
+// STEP 2
+function goToVote(){
+  if(document.getElementById("name").value===""){
+    alert("Enter name");
+    return;
+  }
+  showStep(3);
+}
+
+// VOTE
+function vote(c){
+  let name=document.getElementById("name").value;
+
+  db.ref("voters/"+mobile).once("value",snap=>{
+    if(snap.exists()){
+      alert("This number has already voted.");
+      showStep(4);
+    }else{
+      db.ref("votes/"+c).transaction(v=>(v||0)+1);
+      db.ref("voters/"+mobile).set({name:name,vote:c});
+      alert("Vote submitted!");
+      showStep(4);
+    }
+  });
+}
+
+// WINNER
+function updateWinner(a,b,c){
+  let text="";
+
+  if(a>b && a>c){
+    text="🏆 Winner: Candidate A";
+  }else if(b>a && b>c){
+    text="🏆 Winner: Candidate B";
+  }else if(c>a && c>b){
+    text="🏆 Winner: Candidate C";
+  }else{
+    text="🤝 It's a tie";
+  }
+
+  document.getElementById("winnerText").innerText=text;
+}
+
+// HORIZONTAL COLORFUL GRAPH
+function updateChart(a,b,c){
+  const ctx=document.getElementById("chart");
+  if(chart) chart.destroy();
+
+  chart=new Chart(ctx,{
+    type:"bar",
+    data:{
+      labels:["Candidate A","Candidate B","Candidate C"],
+      datasets:[{
+        data:[a,b,c],
+        backgroundColor:[
+          "#ff4b2b",
+          "#0072ff",
+          "#ffd200"
+        ]
+      }]
+    },
+    options:{
+      indexAxis:'y',
+      plugins:{ legend:{display:false}},
+      scales:{ x:{beginAtZero:true}}
+    }
+  });
+}
+
+// LIVE DATA
+db.ref("votes").on("value",snap=>{
+  let d=snap.val()||{};
+  let a=d["A"]||0;
+  let b=d["B"]||0;
+  let c=d["C"]||0;
+
+  aVotes.innerText=a;
+  bVotes.innerText=b;
+  cVotes.innerText=c;
+
+  updateChart(a,b,c);
+  updateWinner(a,b,c);
+});
+</script>
+
+</body>
+</html>
